@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gmail AI Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── CONFIG BANNER ── */
+  #configBanner {
+    position: fixed; inset: 0; background: #0d0d0d; display: flex;
+    align-items: center; justify-content: center; z-index: 1000; font-family: 'DM Sans', sans-serif;
+  }
+  .config-card {
+    background: #161616; border: 1px solid #2a2a2a; border-radius: 16px;
+    padding: 40px 44px; max-width: 480px; width: 90%;
+  }
+  .config-card h1 { font-size: 22px; font-weight: 500; color: #f0ede6; margin-bottom: 6px; }
+  .config-card p  { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 28px; }
+  .field-label { font-size: 11px; color: #666; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .config-card input {
+    width: 100%; background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: #f0ede6; font-family: 'DM Mono', monospace;
+    outline: none; margin-bottom: 16px; transition: border-color 0.15s;
+  }
+  .config-card input:focus { border-color: #c8a96e; }
+  .config-card input::placeholder { color: #444; }
+  .btn-launch {
+    width: 100%; padding: 12px; background: #c8a96e; color: #0d0d0d; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: background 0.15s; margin-top: 4px;
+  }
+  .btn-launch:hover { background: #d4b87a; }
+  .config-note { font-size: 11px; color: #555; margin-top: 16px; line-height: 1.6; }
+  .config-note a { color: #c8a96e; text-decoration: none; }
+
+  /* ── MAIN APP ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #0d0d0d; color: #f0ede6; }
+  #app { display: none; height: 100vh; display: none; flex-direction: column; }
+
+  /* top bar */
+  .topbar {
+    height: 52px; border-bottom: 1px solid #1e1e1e; display: flex; align-items: center;
+    padding: 0 20px; gap: 14px; flex-shrink: 0;
+  }
+  .topbar-logo { font-size: 14px; font-weight: 500; color: #c8a96e; letter-spacing: -0.01em; }
+  .topbar-sep { width: 1px; height: 16px; background: #2a2a2a; }
+  .topbar-user { font-size: 12px; color: #666; flex: 1; }
+  .topbar-badge {
+    font-size: 11px; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 6px;
+    padding: 3px 10px; color: #888;
+  }
+  .btn-signout {
+    font-size: 12px; color: #555; background: none; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; padding: 4px 8px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .btn-signout:hover { color: #f0ede6; background: #1e1e1e; }
+
+  /* layout */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* sidebar */
+  .sidebar { width: 300px; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-head {
+    padding: 14px 16px; border-bottom: 1px solid #1e1e1e; display: flex;
+    align-items: center; justify-content: space-between;
+  }
+  .sidebar-head h2 { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+  .btn-refresh {
+    font-size: 12px; color: #555; background: none; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; display: flex; align-items: center; gap: 4px;
+    transition: color 0.15s;
+  }
+  .btn-refresh:hover { color: #c8a96e; }
+  .email-list { flex: 1; overflow-y: auto; }
+  .email-list::-webkit-scrollbar { width: 4px; }
+  .email-list::-webkit-scrollbar-track { background: transparent; }
+  .email-list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+  .email-item {
+    padding: 13px 16px; border-bottom: 1px solid #181818; cursor: pointer;
+    transition: background 0.1s; position: relative;
+  }
+  .email-item:hover { background: #141414; }
+  .email-item.active { background: #161616; border-left: 2px solid #c8a96e; }
+  .email-item.active { padding-left: 14px; }
+  .ei-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .ei-sender { font-size: 13px; color: #d0cdc6; }
+  .email-item.unread .ei-sender { font-weight: 500; color: #f0ede6; }
+  .ei-time { font-size: 11px; color: #555; }
+  .ei-subject {
+    font-size: 12px; color: #666; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;
+  }
+  .email-item.unread .ei-subject { color: #999; }
+  .unread-dot { width: 5px; height: 5px; border-radius: 50%; background: #c8a96e; flex-shrink: 0; }
+  .tag {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
+    font-weight: 500; letter-spacing: 0.02em;
+  }
+  .tag-work     { background: #1a1f2e; color: #6b8ccc; border: 1px solid #243050; }
+  .tag-personal { background: #1a2318; color: #6ba86b; border: 1px solid #243024; }
+
+  /* loading skeleton */
+  .skeleton { animation: shimmer 1.4s infinite; }
+  @keyframes shimmer {
+    0%   { opacity: 0.3; }
+    50%  { opacity: 0.6; }
+    100% { opacity: 0.3; }
+  }
+  .skel-item { padding: 13px 16px; border-bottom: 1px solid #181818; }
+  .skel-line { background: #222; border-radius: 4px; height: 10px; margin-bottom: 6px; }
+
+  /* main pane */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: #444; gap: 10px;
+  }
+  .empty-icon { font-size: 48px; color: #222; }
+  .empty-state p { font-size: 13px; }
+
+  .email-view { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .view-header {
+    padding: 18px 24px 14px; border-bottom: 1px solid #1e1e1e; flex-shrink: 0;
+  }
+  .view-subject { font-size: 16px; font-weight: 500; color: #f0ede6; margin-bottom: 6px; line-height: 1.4; }
+  .view-meta { font-size: 12px; color: #555; }
+  .view-body {
+    flex: 1; overflow-y: auto; padding: 22px 24px;
+    font-size: 14px; line-height: 1.75; color: #b0ada6; white-space: pre-wrap;
+  }
+  .view-body::-webkit-scrollbar { width: 4px; }
+  .view-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+  /* reply section */
+  .reply-section { border-top: 1px solid #1e1e1e; padding: 16px 24px; flex-shrink: 0; }
+  .reply-label {
+    font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .ai-badge {
+    font-size: 10px; background: #1e1a14; border: 1px solid #3a3020;
+    color: #c8a96e; border-radius: 4px; padding: 2px 7px; font-weight: 500;
+  }
+  textarea {
+    width: 100%; background: #111; border: 1px solid #222; border-radius: 10px;
+    padding: 12px 14px; font-size: 13px; line-height: 1.65; color: #d0cdc6;
+    font-family: 'DM Sans', sans-serif; resize: none; height: 110px; outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: #3a3020; }
+  textarea::placeholder { color: #444; }
+  textarea:disabled { opacity: 0.5; }
+
+  .reply-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-weight: 500; transition: all 0.12s;
+    border: 1px solid #2a2a2a; background: transparent; color: #888; white-space: nowrap;
+  }
+  .btn:hover { background: #1a1a1a; color: #f0ede6; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-gold { background: #c8a96e; color: #0d0d0d; border-color: #c8a96e; }
+  .btn-gold:hover { background: #d4b87a; border-color: #d4b87a; color: #0d0d0d; }
+  .btn-send { background: #1a2318; color: #6ba86b; border-color: #243024; }
+  .btn-send:hover { background: #243024; color: #8dc88d; border-color: #2e3a2e; }
+
+  .gen-status {
+    display: none; align-items: center; gap: 8px;
+    font-size: 12px; color: #666; margin-left: auto;
+  }
+  .dot-pulse { display: inline-flex; gap: 3px; }
+  .dot-pulse span {
+    width: 4px; height: 4px; border-radius: 50%; background: #c8a96e;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+  .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,80%,100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+
+  .toast {
+    display: none; align-items: center; gap: 6px; font-size: 12px;
+    color: #6ba86b; margin-left: auto; animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* error bar */
+  .error-bar {
+    background: #1f1414; border: 1px solid #3a2020; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; color: #cc7070; margin-bottom: 10px; display: none;
+  }
+
+  /* sign in screen */
+  #signInScreen {
+    display: none; flex: 1; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+  }
+  .signin-card {
+    background: #161616; border: 1px solid #2a2a2a; border-radius: 16px;
+    padding: 36px 40px; max-width: 360px; width: 90%; text-align: center;
+  }
+  .signin-card h2 { font-size: 18px; font-weight: 500; margin-bottom: 8px; color: #f0ede6; }
+  .signin-card p { font-size: 13px; color: #666; margin-bottom: 24px; line-height: 1.6; }
+  .btn-google {
+    width: 100%; padding: 11px; background: #f0ede6; color: #0d0d0d;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 500;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 10px; transition: background 0.15s;
+  }
+  .btn-google:hover { background: #fff; }
+  .btn-google svg { flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- CONFIG BANNER -->
+<div id="configBanner">
+  <div class="config-card">
+    <h1>Gmail AI Agent</h1>
+    <p>Enter your credentials to get started. These are stored only in your browser — never sent anywhere except Google and Anthropic directly.</p>
+
+    <div class="field-label">Google OAuth Client ID</div>
+    <input type="text" id="inputClientId" placeholder="123456789-abc.apps.googleusercontent.com">
+
+    <div class="field-label">Anthropic API Key</div>
+    <input type="password" id="inputApiKey" placeholder="sk-ant-api03-…">
+
+    <div class="error-bar" id="configError"></div>
+
+    <button class="btn-launch" onclick="saveConfig()">Launch agent →</button>
+
+    <div class="config-note">
+      Need help? See the
+      <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>
+      and <a href="https://console.anthropic.com" target="_blank">Anthropic Console</a>.
+      Your Client ID must have <strong>this page's URL</strong> listed under
+      "Authorized JavaScript origins".
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">✦ Gmail AI Agent</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-user" id="topbarUser">—</div>
+    <div class="topbar-badge" id="topbarBadge">0 unread</div>
+    <button class="btn-signout" onclick="signOut()">Sign out</button>
+  </div>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-head">
+        <h2>Inbox</h2>
+        <button class="btn-refresh" onclick="loadEmails()">↻ Refresh</button>
+      </div>
+
+      <!-- Sign in prompt -->
+      <div id="signInScreen">
+        <div class="signin-card">
+          <h2>Connect Gmail</h2>
+          <p>Sign in with Google to load your inbox and start drafting AI replies.</p>
+          <button class="btn-google" onclick="signInWithGoogle()">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.964L3.964 7.296C4.672 5.169 6.656 3.58 9 3.58Z"/></svg>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+
+      <!-- Email list -->
+      <div class="email-list" id="emailList" style="display:none"></div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">✦</div>
+        <p>Select an email to read and draft a reply</p>
+      </div>
+
+      <div class="email-view" id="emailView">
+        <div class="view-header">
+          <div class="view-subject" id="viewSubject"></div>
+          <div class="view-meta" id="viewMeta"></div>
+        </div>
+        <div class="view-body" id="viewBody"></div>
+        <div class="reply-section">
+          <div class="reply-label">
+            AI draft
+            <span class="ai-badge" id="aiBadge" style="display:none">pending review</span>
+          </div>
+          <div class="error-bar" id="replyError"></div>
+          <textarea id="replyBox" placeholder="Click 'Draft reply' to generate an AI-powered reply…"></textarea>
+          <div class="reply-actions">
+            <button class="btn btn-gold" onclick="draftReply()" id="btnDraft">✦ Draft reply</button>
+            <button class="btn btn-send" onclick="sendReply()" id="btnSend">↑ Send</button>
+            <button class="btn" onclick="discardDraft()">Discard</button>
+            <div class="gen-status" id="genStatus">
+              Drafting<div class="dot-pulse"><span></span><span></span><span></span></div>
+            </div>
+            <div class="toast" id="sentToast">✓ Sent</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────
+let CONFIG = { clientId: '', apiKey: '' };
+let accessToken = null;
+let emails = [];
+let activeEmail = null;
+const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
+
+// ── CONFIG ─────────────────────────────────────────────────────────────
+function saveConfig() {
+  const clientId = document.getElementById('inputClientId').value.trim();
+  const apiKey   = document.getElementById('inputApiKey').value.trim();
+  const errEl    = document.getElementById('configError');
+  errEl.style.display = 'none';
+  if (!clientId) { showConfigError('Google OAuth Client ID is required.'); return; }
+  if (!apiKey)   { showConfigError('Anthropic API key is required.'); return; }
+  CONFIG = { clientId, apiKey };
+  localStorage.setItem('gaia_config', JSON.stringify(CONFIG));
+  document.getElementById('configBanner').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  initApp();
+}
+
+function showConfigError(msg) {
+  const el = document.getElementById('configError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────
+function initApp() {
+  const saved = localStorage.getItem('gaia_token');
+  if (saved) {
+    try {
+      const t = JSON.parse(saved);
+      if (t.expires > Date.now()) {
+        accessToken = t.token;
+        showEmailUI(t.email);
+        loadEmails();
+        return;
+      }
+    } catch(e) {}
+  }
+  showSignIn();
+}
+
+function showSignIn() {
+  document.getElementById('signInScreen').style.display = 'flex';
+  document.getElementById('emailList').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+}
+
+function showEmailUI(email) {
+  document.getElementById('signInScreen').style.display = 'none';
+  document.getElementById('emailList').style.display = 'block';
+  document.getElementById('topbarUser').textContent = email || '';
+}
+
+// ── OAUTH ──────────────────────────────────────────────────────────────
+function signInWithGoogle() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.clientId,
+    scope: SCOPES,
+    callback: handleTokenResponse,
+  });
+  client.requestAccessToken();
+}
+
+async function handleTokenResponse(resp) {
+  if (resp.error) { alert('Sign-in error: ' + resp.error); return; }
+  accessToken = resp.access_token;
+  const expires = Date.now() + (resp.expires_in - 60) * 1000;
+  // get user email
+  let email = '';
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const u = await r.json();
+    email = u.email || '';
+  } catch(e) {}
+  localStorage.setItem('gaia_token', JSON.stringify({ token: accessToken, expires, email }));
+  showEmailUI(email);
+  loadEmails();
+}
+
+function signOut() {
+  accessToken = null;
+  localStorage.removeItem('gaia_token');
+  emails = [];
+  activeEmail = null;
+  document.getElementById('emailList').innerHTML = '';
+  document.getElementById('emailView').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('topbarUser').textContent = '—';
+  document.getElementById('topbarBadge').textContent = '0 unread';
+  showSignIn();
+}
+
+// ── GMAIL API ──────────────────────────────────────────────────────────
+async function gmailFetch(url) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message || r.statusText); }
+  return r.json();
+}
+
+async function loadEmails() {
+  if (!accessToken) return;
+  const list = document.getElementById('emailList');
+  list.innerHTML = skeletonHTML(6);
+
+  try {
+    const data = await gmailFetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&labelIds=INBOX'
+    );
+    const ids = (data.messages || []).map(m => m.id);
+    const fetched = await Promise.all(ids.map(id =>
+      gmailFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`)
+    ));
+    emails = fetched.map(parseEmail);
+    renderEmailList();
+    const unread = emails.filter(e => e.unread).length;
+    document.getElementById('topbarBadge').textContent = unread + ' unread';
+  } catch(err) {
+    list.innerHTML = `<div style="padding:20px;font-size:12px;color:#cc7070;">${err.message}</div>`;
+  }
+}
+
+function parseEmail(msg) {
+  const headers = msg.payload?.headers || [];
+  const h = n => (headers.find(x => x.name.toLowerCase() === n.toLowerCase()) || {}).value || '';
+  const isUnread = (msg.labelIds || []).includes('UNREAD');
+  const isWork = detectWork(h('From'), h('Subject'));
+  return {
+    id: msg.id,
+    threadId: msg.threadId,
+    sender: extractName(h('From')),
+    email: extractEmail(h('From')),
+    subject: h('Subject') || '(no subject)',
+    date: formatDate(h('Date')),
+    tag: isWork ? 'work' : 'personal',
+    unread: isUnread,
+    body: extractBody(msg.payload),
+  };
+}
+
+function extractName(from) {
+  const m = from.match(/^"?([^"<]+)"?\s*</);
+  return m ? m[1].trim() : from.split('@')[0];
+}
+function extractEmail(from) {
+  const m = from.match(/<([^>]+)>/);
+  return m ? m[1] : from;
+}
+function detectWork(from, subject) {
+  const work = /(invoice|meeting|project|proposal|team|office|hr|department|report|deadline|client|contract|quarterly)/i;
+  const personalDomains = /(@gmail|@yahoo|@hotmail|@outlook|@icloud|@me\.com)/i;
+  if (work.test(subject)) return true;
+  if (!personalDomains.test(from)) return true;
+  return false;
+}
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000 && d.getDate() === now.getDate()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diff < 7 * 86400000) {
+    return d.toLocaleDateString([], { weekday: 'short' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function extractBody(payload) {
+  if (!payload) return '';
+  // try plain text first
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+  }
+  // recurse into parts
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const text = extractBody(part);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function skeletonHTML(n) {
+  return Array.from({ length: n }, () => `
+    <div class="skel-item skeleton">
+      <div class="skel-line" style="width:60%;margin-bottom:8px"></div>
+      <div class="skel-line" style="width:85%"></div>
+    </div>`).join('');
+}
+
+// ── RENDER LIST ────────────────────────────────────────────────────────
+function renderEmailList() {
+  const list = document.getElementById('emailList');
+  if (!emails.length) {
+    list.innerHTML = '<div style="padding:20px;font-size:12px;color:#555;text-align:center;">No emails found</div>';
+    return;
+  }
+  list.innerHTML = emails.map(e => `
+    <div class="email-item ${e.unread?'unread':''} ${activeEmail?.id===e.id?'active':''}"
+         onclick="selectEmail('${e.id}')">
+      <div class="ei-top">
+        <span class="ei-sender">${esc(e.sender)}</span>
+        <span class="ei-time">${esc(e.date)}</span>
+      </div>
+      <div class="ei-subject">
+        ${e.unread ? '<span class="unread-dot"></span>' : ''}
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(e.subject)}</span>
+        <span class="tag tag-${e.tag}">${e.tag}</span>
+      </div>
+    </div>`).join('');
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── SELECT EMAIL ───────────────────────────────────────────────────────
+function selectEmail(id) {
+  const e = emails.find(x => x.id === id);
+  if (!e) return;
+  activeEmail = e;
+  e.unread = false;
+  renderEmailList();
+
+  document.getElementById('emptyState').style.display = 'none';
+  const view = document.getElementById('emailView');
+  view.style.display = 'flex';
+  view.style.flexDirection = 'column';
+
+  document.getElementById('viewSubject').textContent = e.subject;
+  document.getElementById('viewMeta').textContent = `From: ${e.sender} <${e.email}>  ·  ${e.date}`;
+  document.getElementById('viewBody').textContent = e.body || '(no plain-text body)';
+  document.getElementById('replyBox').value = '';
+  document.getElementById('aiBadge').style.display = 'none';
+  document.getElementById('replyError').style.display = 'none';
+  document.getElementById('sentToast').style.display = 'none';
+  document.getElementById('genStatus').style.display = 'none';
+}
+
+// ── DRAFT REPLY ────────────────────────────────────────────────────────
+async function draftReply() {
+  if (!activeEmail) return;
+  const box    = document.getElementById('replyBox');
+  const badge  = document.getElementById('aiBadge');
+  const genEl  = document.getElementById('genStatus');
+  const errEl  = document.getElementById('replyError');
+  const btnD   = document.getElementById('btnDraft');
+
+  box.value = '';
+  badge.style.display = 'none';
+  errEl.style.display = 'none';
+  genEl.style.display = 'flex';
+  box.disabled = true;
+  btnD.disabled = true;
+
+  try {
+    const e = activeEmail;
+    const systemPrompt = `You are a personal email assistant. Draft a concise, genuine reply to the email below.
+- Adapt tone: warm and casual for personal emails; professional and clear for work emails.
+- Keep it under 120 words.
+- Do not include a subject line. Do not add "Subject:" anywhere.
+- Write in first person. End with a short sign-off but leave the name blank (just write "— ").
+- The email tag is: ${e.tag}.`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CONFIG.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: [{
+          role: 'user',
+          content: `From: ${e.sender} <${e.email}>\nSubject: ${e.subject}\n\n${e.body.slice(0, 2000)}`
+        }]
+      })
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = (data.content || []).map(c => c.text || '').join('');
+    box.value = text;
+    badge.style.display = 'inline';
+  } catch(err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = 'block';
+  }
+
+  genEl.style.display = 'none';
+  box.disabled = false;
+  btnD.disabled = false;
+}
+
+// ── SEND REPLY ────────────────────────────────────────────────────────
+async function sendReply() {
+  const box = document.getElementById('replyBox');
+  const body = box.value.trim();
+  if (!body || !activeEmail || !accessToken) return;
+
+  const btnS   = document.getElementById('btnSend');
+  const toast  = document.getElementById('sentToast');
+  const errEl  = document.getElementById('replyError');
+  btnS.disabled = true;
+  errEl.style.display = 'none';
+
+  try {
+    const e = activeEmail;
+    const raw = buildEmail(e.email, 'Re: ' + e.subject, body, e.threadId);
+    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/send`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw, threadId: e.threadId })
+    });
+    box.value = '';
+    document.getElementById('aiBadge').style.display = 'none';
+    toast.style.display = 'flex';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  } catch(err) {
+    errEl.textContent = 'Send error: ' + err.message;
+    errEl.style.display = 'block';
+  }
+  btnS.disabled = false;
+}
+
+function buildEmail(to, subject, body, threadId) {
+  const msg = [
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `Content-Type: text/plain; charset=utf-8`,
+    ``,
+    body
+  ].join('\r\n');
+  return btoa(unescape(encodeURIComponent(msg)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function discardDraft() {
+  document.getElementById('replyBox').value = '';
+  document.getElementById('aiBadge').style.display = 'none';
+  document.getElementById('replyError').style.display = 'none';
+}
+
+// ── BOOT ───────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('gaia_config');
+  if (saved) {
+    try {
+      CONFIG = JSON.parse(saved);
+      document.getElementById('inputClientId').value = CONFIG.clientId || '';
+      document.getElementById('inputApiKey').value   = CONFIG.apiKey   || '';
+    } catch(e) {}
+  }
+});
+</script>
+</body>
+</html>
